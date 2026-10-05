@@ -5,6 +5,7 @@ class Clone {
         this.sourceStart = sourceChunk[0].lineNumber;
         this.sourceEnd = sourceChunk[sourceChunk.length -1].lineNumber;
         this.sourceChunk = sourceChunk;
+        this.originalCode = sourceChunk.map(l => l.content).join('\n');
 
         this.targets = [{ name: targetName, startLine: targetChunk[0].lineNumber }];
     }

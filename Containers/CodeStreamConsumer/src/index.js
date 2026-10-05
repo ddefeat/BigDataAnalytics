@@ -24,6 +24,7 @@ function fileReceiver(req, res, next) {
 }
 
 app.get('/', viewClones );
+app.get('/timers', viewTimers);
 
 const server = app.listen(PORT, () => { console.log('Listening for files on port', PORT); });
 
@@ -58,7 +59,7 @@ function listClonesHTML() {
         output += '<p>Starting at line: ' + clone.sourceStart + ' , ending at line: ' + clone.sourceEnd + '</p>\n';
         output += '<ul>';
         clone.targets.forEach( target => {
-            output += '<li>Found in ' + target.name + ' starting at line ' + target.startLine + '\n';            
+            output += '<li>Found in ' + target.name + ' starting at line ' + target.startLine + '\n';
         });
         output += '</ul>\n'
         output += '<h3>Contents:</h3>\n<pre><code>\n';
@@ -83,6 +84,7 @@ function listProcessedFilesHTML() {
 function viewClones(req, res, next) {
     let page='<HTML><HEAD><TITLE>CodeStream Clone Detector</TITLE></HEAD>\n';
     page += '<BODY><H1>CodeStream Clone Detector</H1>\n';
+    page += '<P><A href="/timers">View timing statistics</A></P>\n';
     page += '<P>' + getStatistics() + '</P>\n';
     page += lastFileTimersHTML() + '\n';
     page += listClonesHTML() + '\n';
@@ -90,6 +92,85 @@ function viewClones(req, res, next) {
     page += '</BODY></HTML>';
     res.send(page);
 }
+
+function viewTimers(req, res, next) {
+    let page = '<HTML><HEAD><TITLE>Timing Statistics</TITLE></HEAD>\n';
+    page += '<BODY><H1>Timing Statistics</H1>\n';
+
+    if (timerHistory.length === 0) {
+        page += '<P>No timing data available yet.</P>\n';
+        page += '<P><A href="/">Back to clones</A></P>\n';
+        page += '</BODY></HTML>';
+
+        return res.send(page);
+    }
+
+    let totalSum = timerHistory.reduce((sum, item) => sum + item.total, 0);
+    let matchSum = timerHistory.reduce((sum, item) => sum + item.match, 0);
+
+    let averageTotal = totalSum / timerHistory.length;
+    let averageMatch = matchSum / timerHistory.length;
+
+    let last100 = timerHistory.slice(-100);
+    let last1000 = timerHistory.slice(-1000);
+
+    let averageLast100 = last100.reduce((sum, item) => sum + item.total, 0) / last100.length;
+    let averageLast1000 = last1000.reduce((sum, item) => sum + item.total, 0) / last1000.length;
+
+    page += '<P>Files measured: ' + timerHistory.length + '</P>\n';
+
+    page += '<P>Average total processing time: ' +
+        averageTotal.toFixed(2) + ' µs</P>\n';
+
+    page += '<P>Average match time: ' +
+        averageMatch.toFixed(2) + ' µs</P>\n';
+
+    page += '<P>Average total time for last 100 files: ' +
+        averageLast100.toFixed(2) + ' µs</P>\n';
+
+    page += '<P>Average total time for last 1000 files: ' +
+        averageLast1000.toFixed(2) + ' µs</P>\n';
+
+    page += '<H2>Processed Files</H2>\n';
+
+    page += '<TABLE border="1">\n';
+
+    page += '<TR>' +
+        '<TH>#</TH>' +
+        '<TH>File</TH>' +
+        '<TH>Lines</TH>' +
+        '<TH>Total time (µs)</TH>' +
+        '<TH>Match time (µs)</TH>' +
+        '<TH>Time per line (µs)</TH>' +
+        '</TR>\n';
+
+    timerHistory.forEach(item => {
+
+        let timePerLine = item.lines > 0
+            ? item.total / item.lines
+            : 0;
+
+        page += '<TR>';
+
+        page += '<TD>' + item.number + '</TD>';
+        page += '<TD>' + item.name + '</TD>';
+        page += '<TD>' + item.lines + '</TD>';
+        page += '<TD>' + item.total + '</TD>';
+        page += '<TD>' + item.match + '</TD>';
+        page += '<TD>' + timePerLine.toFixed(2) + '</TD>';
+
+        page += '</TR>\n';
+    });
+
+    page += '</TABLE>\n';
+
+    page += '<P><A href="/">Back to clones</A></P>\n';
+
+    page += '</BODY></HTML>';
+
+    res.send(page);
+}
+
 
 // Some helper functions
 // --------------------
@@ -106,6 +187,23 @@ PASS = fn => d => {
 const STATS_FREQ = 100;
 const URL = process.env.URL || 'http://localhost:8080/';
 var lastFile = null;
+
+var timerHistory = [];
+
+function storeTimerStatistics(file) {
+    let timers = Timer.getTimers(file);
+
+    timerHistory.push({
+        number: timerHistory.length + 1,
+        name: file.name,
+        total: Number(timers.total / 1000n),
+        match: Number(timers.match / 1000n),
+        lines: file.lines ? file.lines.length : 0
+    });
+
+    return file;
+}
+
 
 function maybePrintStatistics(file, cloneDetector, cloneStore) {
     if (0 == cloneDetector.numberOfProcessedFiles % STATS_FREQ) {
@@ -141,12 +239,9 @@ function processFile(filename, contents) {
 
         .then( (file) => cd.storeFile(file) )
         .then( (file) => Timer.endTimer(file, 'total') )
+        .then( PASS( (file) => storeTimerStatistics(file) ))
         .then( PASS( (file) => lastFile = file ))
         .then( PASS( (file) => maybePrintStatistics(file, cd, cloneStore) ))
-    // TODO Store the timers from every file (or every 10th file), create a new landing page /timers
-    // and display more in depth statistics there. Examples include:
-    // average times per file, average times per last 100 files, last 1000 files.
-    // Perhaps throw in a graph over all files.
         .catch( console.log );
 };
 
