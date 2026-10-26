@@ -1,4 +1,7 @@
-all: corpusGetter codeStreamGenerator codeStreamConsumer cljDetector
+all: corpusGetter codeStreamGenerator codeStreamConsumer cljDetector monitorTool
+
+monitorTool:
+	cd MonitorTool && docker build -t monitortool .
 
 corpusGetter:
 	cd CorpusGetter && docker build -t corpusgetter .

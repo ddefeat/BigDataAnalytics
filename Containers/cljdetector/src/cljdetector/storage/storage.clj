@@ -19,8 +19,14 @@
 (defn clear-db! []
   (let [conn (mg/connect {:host hostname})        
         db (mg/get-db conn dbname)]
-    (doseq [coll collnames]
+    (doseq [coll (conj collnames "statusUpdates")]
       (mc/drop db coll))))
+
+(defn addUpdate! [timestamp message]
+  (let [conn (mg/connect {:host hostname})
+        db (mg/get-db conn dbname)]
+    (mc/insert db "statusUpdates" {:timestamp timestamp :message message})
+    (mg/disconnect conn)))
 
 (defn count-items [collname]
   (let [conn (mg/connect {:host hostname})        

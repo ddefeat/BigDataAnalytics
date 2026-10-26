@@ -17,6 +17,18 @@ services:
       SOURCEDIR: "/QualitasCorpus"
       CHUNKSIZE: 20
 
+  monitor-tool:
+    image: monitortool
+    depends_on:
+      - dbstorage
+    ports:
+      - 8081:8000
+    volumes:
+      - ./Containers/MonitorTool:/app
+    environment:
+      DBHOST: dbstorage
+      INTERVAL: 5
+
   dbstorage:
     image: mongo
     restart: always
