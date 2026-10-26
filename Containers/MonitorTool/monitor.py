@@ -28,8 +28,8 @@ def report(rows):
         ns, ps = zip(*pts)
         try:
             slope = statistics.linear_regression(ns, ps).slope
-            lin = r2(ns, ps)
-            exp = r2(ns, [math.log(p) for p in ps])
+            lin = r_squared(ns, ps)
+            exp = r_squared(ns, [math.log(p) for p in ps])
         except statistics.StatisticsError:
             continue
         print(f"[stats] {c}: time/unit {'increases' if slope > 0 else 'decreases'} "
