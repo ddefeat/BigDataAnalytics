@@ -4,11 +4,13 @@ version: "3.8"
 services:
   clone-detector:
     image: cljdetector
-    command: clear 
+    command: clear
+    depends_on:
+      dbstorage:
+        condition: service_healthy
     ports:
       - 8080:3000
     volumes:
-      - ./Containers/cljdetector:/usr/src/app
       - qc-volume:/QualitasCorpus
     environment:
       DBHOST: dbstorage
@@ -20,11 +22,10 @@ services:
   monitor-tool:
     image: monitortool
     depends_on:
-      - dbstorage
+      dbstorage:
+        condition: service_healthy
     ports:
       - 8081:8000
-    volumes:
-      - ./Containers/MonitorTool:/app
     environment:
       DBHOST: dbstorage
       INTERVAL: 5
@@ -35,8 +36,11 @@ services:
     command: --quiet --syslog
     ports:
       - 27017:27017
-    expose:
-      - "27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 })'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - dbstorage:/data/db
       - dbconfig:/data/configdb
