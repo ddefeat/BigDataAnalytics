@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MonitorTool</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: sans-serif; }
+  .row { display: flex; gap: 1em; }
+  .row div { flex: 1; min-width: 0; }
+</style>
+</head>
+<body>
+<h2>Clone detector monitor</h2>
+<p>Left: units in the database over time. Right: seconds per new unit vs. units already processed.</p>
+<div id="charts"></div>
+<script>
+const COLS = ["files", "chunks", "candidates", "clones"];
+const charts = {};
+
+function mk(id, title, xlabel, ylabel) {
+  return new Chart(document.getElementById(id), {
+    type: "scatter",
+    data: { datasets: [{ label: title, data: [], showLine: true, pointRadius: 1 }] },
+    options: { animation: false, scales: {
+      x: { title: { display: true, text: xlabel } },
+      y: { title: { display: true, text: ylabel } } } }
+  });
+}
+
+COLS.forEach(c => {
+  document.getElementById("charts").insertAdjacentHTML("beforeend",
+    `<div class="row"><div><canvas id="${c}-n"></canvas></div><div><canvas id="${c}-p"></canvas></div></div>`);
+  charts[c] = [mk(c + "-n", c, "seconds since start", "count"),
+               mk(c + "-p", c, "units processed", "seconds per unit")];
+});
+
+async function refresh() {
+  const text = await (await fetch("samples.csv", { cache: "no-store" })).text();
+  const rows = text.trim().split("\n").slice(1).map(l => l.split(",").map(Number));
+  if (rows.length < 2) return;
+  COLS.forEach((c, i) => {
+    const k = i + 1;
+    charts[c][0].data.datasets[0].data = rows.map(r => ({ x: r[0] - rows[0][0], y: r[k] }));
+    charts[c][1].data.datasets[0].data = rows.slice(1)
+      .map((r, j) => ({ r, prev: rows[j] }))
+      .filter(({ r, prev }) => r[k] > prev[k])
+      .map(({ r, prev }) => ({ x: r[k], y: (r[0] - prev[0]) / (r[k] - prev[k]) }));
+    charts[c].forEach(ch => ch.update());
+  });
+}
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>
